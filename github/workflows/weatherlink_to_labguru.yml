@@ -1,0 +1,42 @@
+name: WeatherLink to Labguru
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run sync
+        run: python weatherlink_to_labguru.py
+        env:
+          WEATHERLINK_API_KEY: ${{ secrets.WEATHERLINK_API_KEY }}
+          WEATHERLINK_API_SECRET: ${{ secrets.WEATHERLINK_API_SECRET }}
+          LABGURU_BASE_URL: ${{ secrets.LABGURU_BASE_URL }}
+          LABGURU_TOKEN: ${{ secrets.LABGURU_TOKEN }}
+
+          # Start with dry run true.
+          # Change to false once WeatherLink discovery and Labguru endpoints are confirmed.
+          DRY_RUN: "true"
+
+          AUTO_ADD_COLUMNS: "true"
+          ALLOW_DUPLICATES: "true"
+
+          # Update these after checking your Labguru API docs.
+          LABGURU_DATASETS_PATH: "/api/v1/datasets"
+          LABGURU_DATASET_DETAIL_PATH_TEMPLATE: "/api/v1/datasets/{dataset_id}"
+          LABGURU_VECTOR_CREATE_PATH_TEMPLATE: "/api/v1/datasets/{dataset_id}/vectors"
