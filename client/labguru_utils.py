@@ -1,4 +1,10 @@
-# client/labguru_utils.py
+"""
+Labguru Utility Functions
+
+Shared helper functions used across WeatherLink and LI-COR
+integrations for safe data extraction and standard dataset
+schema generation.
+"""
 
 def safe_get(obj, keys, default=""):
     if not isinstance(obj, dict):

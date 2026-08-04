@@ -1,20 +1,32 @@
+"""
+WeatherLink → Labguru Synchronization
+
+Automatically discovers WeatherLink stations and sensors,
+creates or updates Labguru datasets, uploads current sensor
+data, and records synchronization state.
+
+State Tracking:
+    state/sync_state.json
+
+Author: Gina Magro
+"""
+
+
 import os
 import re
 import sys
 import json
 import logging
-from pathlib import Path
-from datetime import datetime, timezone
-
 import requests
 
+from pathlib import Path
+from datetime import datetime, timezone
+from client.state_manager import (load_state,save_state,utc_now)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-
-
 try:
     from dotenv import load_dotenv
     load_dotenv(PROJECT_ROOT / ".env")
@@ -599,6 +611,12 @@ def sync_weatherlink_to_labguru():
 
     logger.info("Starting WeatherLink to Labguru sync.")
     logger.info("DRY_RUN=%s", DRY_RUN)
+    ### Recording the latest state from sync
+    state = load_state()
+
+    last_timestamp = state[
+        "last_weatherlink_timestamp"
+    ]
 
     WeatherLinkLabguruClient = import_labguru_client()
 
@@ -743,10 +761,18 @@ def sync_weatherlink_to_labguru():
                         error
                     )
 
+    state[
+        "last_weatherlink_sync"
+    ] = utc_now()
+
     logger.info("WeatherLink sync complete.")
     logger.info("Datasets touched: %s", total_datasets)
     logger.info("Rows inserted: %s", total_rows)
 
+
+
+
+    save_state(state)
 
 if __name__ == "__main__":
     sync_weatherlink_to_labguru()

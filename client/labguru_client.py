@@ -1,3 +1,23 @@
+"""
+Labguru API Client
+
+Provides a centralized interface for interacting with Labguru datasets
+and vectors. Handles dataset discovery, creation, schema updates,
+row insertion, authentication, and dry-run testing.
+
+Used by:
+    - weatherlink_to_labguru.py
+    - licor_to_labguru.py
+
+Supports:
+    - Dataset lookup
+    - Dataset creation
+    - Automatic column management
+    - Vector (row) insertion
+    - Parent folder assignment
+    - Dry-run validation
+"""
+
 import json
 
 import requests

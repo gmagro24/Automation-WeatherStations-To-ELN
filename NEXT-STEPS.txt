@@ -5,7 +5,10 @@ Labguru: 60%
 - The remaining 40% is depentent on:
     - Labguru credentials
     - Confirming the correct folder field name
-    Confirming the dataset creation endpoint behavior 
+    - Confirming the dataset creation endpoint behavior
+Github 0%
+    - Place API tokens/Secrets(basically the config.py)  in settings -> secrets and variables -> actions -> New repository Secret
+    
 
 
 ##### Folders to create in Labguru

@@ -1,4 +1,26 @@
-import os
+"""
+LI-COR API Connectivity and Discovery Test
+
+Validates communication with the LI-COR Cloud API by:
+
+    - Verifying API authentication
+    - Retrieving available devices
+    - Inspecting device metadata
+    - Inspecting sensor metadata
+    - Testing historical data endpoint access
+    - Displaying API response structures
+
+Purpose:
+    - Confirm API credentials are working
+    - Verify device visibility
+    - Assist troubleshooting and development of
+      licor_to_labguru.py
+
+Note:
+    This script does not create Labguru datasets or
+    upload records. It is intended solely for API
+    validation and response inspection.
+"""
 import sys
 from pathlib import Path
 import json

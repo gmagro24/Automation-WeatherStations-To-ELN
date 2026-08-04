@@ -1,4 +1,20 @@
-# test_discover_weatherlink_fields.py
+"""
+WeatherLink Field Discovery Test
+
+Retrieves all WeatherLink stations and current sensor data,
+then scans every sensor packet to identify available data
+fields returned by the WeatherLink API.
+
+Purpose:
+    - Discover available WeatherLink measurements
+    - Validate API connectivity
+    - Assist dataset schema design
+    - Identify new fields for Labguru integration
+
+Output:
+    Prints a sorted list of all unique data fields found
+    across all stations and sensors.
+"""
 from config import WEATHERLINK_API_KEY, WEATHERLINK_API_SECRET
 from weatherlink_to_labguru import WeatherLinkClient
 

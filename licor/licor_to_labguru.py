@@ -1,12 +1,23 @@
+"""
+LI-COR → Labguru Synchronization
+
+Automatically discovers LI-COR stations and sensors,
+creates or updates Labguru datasets, uploads current sensor
+data, and records synchronization state.
+
+State Tracking:
+    state/sync_state.json
+
+Author: Gina Magro
+"""
 import os
 import sys
 import json
 import logging
+import requests
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-
-import requests
-
+from client.state_manager import load_state, utc_now, save_state
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -535,6 +546,12 @@ def sync_licor_to_labguru():
     logger.info("Starting LI-COR API to Labguru sync.")
     logger.info("DRY_RUN=%s", DRY_RUN)
 
+    state = load_state()
+
+    last_licor_timestamp = state.get(
+        "last_licor_timestamp"
+    )
+
     licor = LicorClient()
 
     labguru = LabguruClient(
@@ -656,9 +673,13 @@ def sync_licor_to_labguru():
 
             total_rows += 1
 
+    state["last_licor_sync"] = utc_now()
+    save_state(state)
+
     logger.info("LI-COR API sync complete.")
     logger.info("Datasets touched: %s", total_datasets)
     logger.info("Rows inserted: %s", total_rows)
+
 
 
 if __name__ == "__main__":

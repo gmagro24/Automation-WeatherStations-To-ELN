@@ -236,42 +236,77 @@ Environment variables should be stored in:
 GitHub Secrets
 ```
 
-Never commit:
+# State Tracking
+
+The platform maintains synchronization state in:
 
 ```text
-.env
+state/sync_state.json
 ```
 
-to source control.
-
-Only commit:
-
-```text
-.env.example
-```
+This file is used to track the most recent synchronization activity for both WeatherLink and LI-COR integrations.
 
 ---
 
-# Safety Notes
+## State File Structure
 
-The following files should never be committed:
-
-```text
-.env
-credentials.json
-tokens.txt
+```json
+{
+  "last_weatherlink_timestamp": null,
+  "last_licor_timestamp": null,
+  "last_weatherlink_sync": null,
+  "last_licor_sync": null
+}
 ```
 
-Always verify:
+### Fields
 
-```powershell
-git status
-```
-
-before pushing changes.
+| Field | Description |
+|---------|-------------|
+| `last_weatherlink_timestamp` | Most recent WeatherLink record successfully uploaded to Labguru |
+| `last_licor_timestamp` | Most recent LI-COR record successfully uploaded to Labguru |
+| `last_weatherlink_sync` | Timestamp of the last completed WeatherLink synchronization |
+| `last_licor_sync` | Timestamp of the last completed LI-COR synchronization |
 
 ---
-Markdown
+
+## Current Implementation
+
+At the current stage of development, only synchronization timestamps are updated:
+
+```python
+state["last_weatherlink_sync"] = utc_now()
+save_state(state)
+```
+
+```python
+state["last_licor_sync"] = utc_now()
+save_state(state)
+```
+
+The timestamp filtering fields:
+
+```json
+{
+  "last_weatherlink_timestamp": null,
+  "last_licor_timestamp": null
+}
+```
+
+are reserved for future duplicate-prevention logic.
+
+---
+
+## WeatherLink State Tracking
+
+At the beginning of each WeatherLink synchronization:
+
+```python
+state = load_state()
+
+last_weatherlink_timestamp = state.get()
+```
+
 # Current Status
 
 ## WeatherLink
@@ -287,6 +322,7 @@ Completed:
 Status:
 ```text
 Awaiting Labguru credential validation
+Newest_timestamp defined, so duplicate entries do not occur.
 ```
 ---
 ## LI-COR
@@ -302,6 +338,7 @@ Status:
 
 ```text
 Awaiting Labguru credential validation
+Newest_timestamp defined, so duplicate entries do not occur.
 ```
 
 Historical data endpoint validation remains under investigation.
@@ -309,4 +346,4 @@ Current implementation automatically uploads latest sensor values for all discov
 
 # Author
 
-Clarke Synergy / Environmental Data Integration Project
+Clarke / Environmental Data Integration Project
