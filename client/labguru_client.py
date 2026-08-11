@@ -19,6 +19,9 @@ Supports:
 """
 
 import json
+import csv
+import io
+import os
 
 import requests
 
@@ -55,6 +58,119 @@ class LabguruClient:
             }
 
         return {}
+
+    def _extract_first_int(self, obj):
+        if isinstance(obj, int):
+            return obj
+
+        if isinstance(obj, dict):
+            for key in [
+                "id",
+                "attachment_id",
+                "data_attachment_id",
+                "file_id",
+            ]:
+                value = obj.get(key)
+                if isinstance(value, int):
+                    return value
+
+            for value in obj.values():
+                found = self._extract_first_int(value)
+                if found is not None:
+                    return found
+
+        if isinstance(obj, list):
+            for item in obj:
+                found = self._extract_first_int(item)
+                if found is not None:
+                    return found
+
+        return None
+
+    def _upload_seed_attachment(self, columns):
+        clean_columns = [
+            str(column).strip()
+            for column in (columns or [])
+            if str(column).strip()
+        ]
+
+        if not clean_columns:
+            clean_columns = ["record_timestamp"]
+
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(clean_columns)
+        writer.writerow([""] * len(clean_columns))
+        csv_content = csv_buffer.getvalue().encode("utf-8")
+
+        candidate_paths = [
+            os.getenv("LABGURU_ATTACHMENT_UPLOAD_PATH", "").strip(),
+            "/api/v1/attachments",
+            "/api/v1/data_attachments",
+            "/api/v1/files",
+        ]
+
+        candidate_paths = [
+            path for path in candidate_paths
+            if path
+        ]
+
+        upload_field_names = [
+            "file",
+            "attachment",
+            "data",
+            "qqfile",
+        ]
+
+        last_error = None
+
+        for path in candidate_paths:
+            url = self._url(path)
+
+            for field_name in upload_field_names:
+                files = {
+                    field_name: (
+                        "seed_dataset.csv",
+                        csv_content,
+                        "text/csv"
+                    )
+                }
+
+                try:
+                    response = self.session.post(
+                        url,
+                        headers={"Accept": "application/json"},
+                        params=self._params(),
+                        files=files,
+                        timeout=60
+                    )
+
+                    if response.status_code >= 400:
+                        continue
+
+                    try:
+                        data = response.json()
+                    except ValueError:
+                        continue
+
+                    attachment_id = self._extract_first_int(data)
+
+                    if attachment_id is not None:
+                        logger.info(
+                            "Uploaded Labguru seed attachment: id=%s path=%s field=%s",
+                            attachment_id,
+                            path,
+                            field_name
+                        )
+                        return attachment_id
+
+                except requests.RequestException as error:
+                    last_error = error
+
+        if last_error is not None:
+            logger.warning("Attachment upload attempts failed: %s", last_error)
+
+        return None
 
     def get_datasets(self):
         if DRY_RUN:
@@ -230,6 +346,77 @@ class LabguruClient:
                 response.raise_for_status()
             except requests.HTTPError as error:
                 last_error = error
+
+        attachment_id = self._upload_seed_attachment(safe_columns)
+
+        if attachment_id is not None:
+            logger.info(
+                "Retrying dataset creation using data_attachment_id fallback."
+            )
+
+            item_payload = {
+                "item": {
+                    "name": dataset_name,
+                    "description": "Auto-created by WeatherStations sync",
+                    "data_attachment_id": attachment_id,
+                }
+            }
+
+            if parent_folder_id:
+                item_payload["item"]["parent_folder_id"] = parent_folder_id
+
+            body_variants = [
+                {
+                    "token": self.token,
+                    **item_payload,
+                },
+                item_payload,
+            ]
+
+            for index, payload in enumerate(body_variants, start=1):
+                params = self._params()
+                if "token" in payload and "item" in payload:
+                    params = {}
+
+                response = self.session.post(
+                    url,
+                    headers=self._headers(),
+                    params=params,
+                    json=payload,
+                    timeout=60
+                )
+
+                if response.status_code < 400:
+                    return response.json()
+
+                logger.warning(
+                    "Attachment-based dataset create attempt %s failed: status=%s",
+                    index,
+                    response.status_code
+                )
+
+                if response.text:
+                    logger.warning(
+                        "Labguru response body (attachment attempt %s): %s",
+                        index,
+                        response.text[:800]
+                    )
+
+                try:
+                    created_dataset = self.find_dataset_by_name(dataset_name)
+                    if created_dataset:
+                        logger.info(
+                            "Dataset appears to have been created after attachment fallback: %s",
+                            dataset_name
+                        )
+                        return created_dataset
+                except Exception:
+                    pass
+
+                try:
+                    response.raise_for_status()
+                except requests.HTTPError as error:
+                    last_error = error
 
         if last_error is not None:
             raise last_error
