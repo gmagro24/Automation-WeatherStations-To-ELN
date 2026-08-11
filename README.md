@@ -34,7 +34,6 @@ WeatherStations_Automated_Updating/
 ├── licor/
 │   ├── licor_to_labguru.py
 │   ├── test_licor_pipeline.py
-│   └── sample_data/
 │
 ├── config.py
 ├── requirements.txt
@@ -92,7 +91,7 @@ Every week
 
 Create a `.env` file.
 
-Example:
+Production example:
 
 ```env
 WEATHERLINK_API_KEY=
@@ -100,16 +99,27 @@ WEATHERLINK_API_SECRET=
 
 LABGURU_BASE_URL=
 LABGURU_TOKEN=
-LABGURU_AUTH_MODE=bearer
+LABGURU_AUTH_MODE=query
 
 LABGURU_WEATHERLINK_PARENT_FOLDER_ID=
 LABGURU_LICOR_PARENT_FOLDER_ID=
 
-LICOR_DATA_FOLDER=licor/sample_data
-
 DRY_RUN=true
 AUTO_ADD_COLUMNS=true
 ```
+
+Notes:
+
+- `LABGURU_AUTH_MODE` should be `query` for the token behavior currently used by this project.
+- Keep `DRY_RUN=true` while validating locally, then switch to `false` only when you are ready to write to Labguru.
+
+Optional local/testing settings:
+
+```env
+LICOR_DATA_FOLDER=licor/sample_data
+```
+
+- `LICOR_DATA_FOLDER` is only a leftover local/testing setting and is not used by the current LI-COR sync code.
 
 ---
 
@@ -235,6 +245,34 @@ Environment variables should be stored in:
 ```text
 GitHub Secrets
 ```
+
+Use the same values as the production `.env`, but store them as repository secrets instead of committing them to the repo.
+
+Required GitHub Secrets:
+
+- `WEATHERLINK_API_KEY`
+- `WEATHERLINK_API_SECRET`
+- `LICOR_API_BASE_URL`
+- `LICOR_API_TOKEN`
+- `LABGURU_BASE_URL`
+- `LABGURU_TOKEN`
+- `LABGURU_AUTH_MODE`
+- `LABGURU_WEATHERLINK_PARENT_FOLDER_ID`
+- `LABGURU_LICOR_PARENT_FOLDER_ID`
+
+Deployment checklist:
+
+1. Add the secrets above in GitHub Actions.
+2. Keep `LABGURU_AUTH_MODE=query`.
+3. Confirm `LABGURU_BASE_URL=https://my.labguru.com`.
+4. Run each workflow manually once from the Actions tab.
+5. Verify datasets and rows appear in Labguru.
+6. Leave `DRY_RUN=false` in the workflows only after the manual test succeeds.
+
+Workflow schedules:
+
+- WeatherLink sync runs every 15 minutes.
+- LI-COR sync runs weekly on Sunday at 00:00 UTC.
 
 # State Tracking
 
