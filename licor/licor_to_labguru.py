@@ -11,10 +11,12 @@ State Tracking:
 Author: Gina Magro
 """
 import sys
+import re
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+import unicodedata
 
 
 try:
@@ -193,6 +195,22 @@ def clean_dataset_name(value):
     text = text.replace("\\", "-")
     text = " ".join(text.split())
     return text[:180]
+
+
+def normalize_column_name(value):
+    text = str(value or "").strip()
+
+    if not text:
+        return "unknown_column"
+
+    text = text.replace("°", "deg")
+    text = text.replace("/", " per ")
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"[^A-Za-z0-9 _().-]", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text[:180] or "unknown_column"
 
 
 def require_env():
@@ -411,11 +429,15 @@ def add_latest_sensor_columns(columns, device):
             continue
 
         if units:
-            column_name = f"{measurement_type} ({units})"
+            column_name = normalize_column_name(
+                f"{measurement_type} ({units})"
+            )
         else:
-            column_name = measurement_type
+            column_name = normalize_column_name(measurement_type)
 
-        sensor_col = f"{measurement_type} Sensor Serial Number"
+        sensor_col = normalize_column_name(
+            f"{measurement_type} Sensor Serial Number"
+        )
 
         if column_name not in columns:
             columns.append(column_name)
@@ -550,12 +572,18 @@ def build_latest_row(device):
             continue
 
         if units:
-            column_name = f"{measurement_type} ({units})"
+            column_name = normalize_column_name(
+                f"{measurement_type} ({units})"
+            )
         else:
-            column_name = measurement_type
+            column_name = normalize_column_name(measurement_type)
 
         row[column_name] = latest
-        row[f"{measurement_type} Sensor Serial Number"] = sensor_serial
+        row[
+            normalize_column_name(
+                f"{measurement_type} Sensor Serial Number"
+            )
+        ] = sensor_serial
 
     return row
 

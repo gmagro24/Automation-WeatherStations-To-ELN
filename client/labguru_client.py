@@ -115,16 +115,36 @@ class LabguruClient:
             dataset_name
         )
 
-        payload = {
-            "name": dataset_name,
-            "title": dataset_name,
-            "columns": columns,
-            "fields": columns,
-            "headers": columns,
-        }
+        payload_variants = [
+            {
+                "name": dataset_name,
+                "title": dataset_name,
+                "columns": columns,
+                "fields": columns,
+                "headers": columns,
+            },
+            {
+                "name": dataset_name,
+                "columns": columns,
+            },
+            {
+                "title": dataset_name,
+                "headers": columns,
+            },
+            {
+                "dataset": {
+                    "name": dataset_name,
+                    "columns": columns,
+                }
+            },
+        ]
 
         if parent_folder_id:
-            payload["parent_folder_id"] = parent_folder_id
+            for payload in payload_variants:
+                if "dataset" in payload:
+                    payload["dataset"]["parent_folder_id"] = parent_folder_id
+                else:
+                    payload["parent_folder_id"] = parent_folder_id
 
         if DRY_RUN:
             logger.info(
@@ -133,7 +153,7 @@ class LabguruClient:
 
             logger.info(
                 json.dumps(
-                    payload,
+                    payload_variants[0],
                     indent=2
                 )
             )
@@ -148,17 +168,57 @@ class LabguruClient:
             LABGURU_DATASETS_PATH
         )
 
-        response = self.session.post(
-            url,
-            headers=self._headers(),
-            params=self._params(),
-            json=payload,
-            timeout=60
+        last_error = None
+
+        for index, payload in enumerate(payload_variants, start=1):
+            response = self.session.post(
+                url,
+                headers=self._headers(),
+                params=self._params(),
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code < 400:
+                return response.json()
+
+            logger.warning(
+                "Labguru dataset create attempt %s failed: status=%s",
+                index,
+                response.status_code
+            )
+
+            if response.text:
+                logger.warning(
+                    "Labguru response body (attempt %s): %s",
+                    index,
+                    response.text[:800]
+                )
+
+            # Some Labguru errors return 5xx even if dataset was created.
+            # Check by name before trying the next payload shape.
+            try:
+                created_dataset = self.find_dataset_by_name(dataset_name)
+                if created_dataset:
+                    logger.info(
+                        "Dataset appears to have been created despite error response: %s",
+                        dataset_name
+                    )
+                    return created_dataset
+            except Exception:
+                pass
+
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as error:
+                last_error = error
+
+        if last_error is not None:
+            raise last_error
+
+        raise RuntimeError(
+            f"Failed to create Labguru dataset after trying multiple payload formats: {dataset_name}"
         )
-
-        response.raise_for_status()
-
-        return response.json()
 
     def get_dataset_detail(self, dataset_id):
         if DRY_RUN:
