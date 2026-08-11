@@ -345,43 +345,7 @@ state = load_state()
 last_weatherlink_timestamp = state.get()
 ```
 
-# Current Status
-
-## WeatherLink
-
-Completed:
-- API authentication
-- Station discovery
-- Sensor discovery
-- Dynamic schema creation
-- Automatic dataset generation
-- GitHub workflow integration
-
-Status:
-```text
-Awaiting Labguru credential validation
-Newest_timestamp defined, so duplicate entries do not occur.
-```
----
-## LI-COR
-Completed:
-- API authentication
-- Device discovery
-- Sensor discovery
-- Dynamic schema creation
-- Automatic dataset generation
-- GitHub workflow integration
-
-Status:
-
-```text
-Awaiting Labguru credential validation
-Newest_timestamp defined, so duplicate entries do not occur.
-```
-
-Historical data endpoint validation remains under investigation.
-Current implementation automatically uploads latest sensor values for all discovered devices.
 
 # Author
 
-Clarke / Environmental Data Integration Project
+Gina Magro / Environmental Data Integration Project
