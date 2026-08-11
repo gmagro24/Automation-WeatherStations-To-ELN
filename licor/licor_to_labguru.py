@@ -204,6 +204,7 @@ def normalize_column_name(value):
         return "unknown_column"
 
     text = text.replace("°", "deg")
+    text = text.replace("%", "pct")
     text = text.replace("/", " per ")
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii")
