@@ -1,0 +1,41 @@
+name: LI-COR to Labguru Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0"
+
+concurrency:
+  group: licor-to-labguru-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-licor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile LI-COR script
+        run: python -m py_compile licor/licor_to_labguru.py
+
+      - name: Run LI-COR sync
+        run: python licor/licor_to_labguru.py
+        env:
+          LICOR_API_BASE_URL: ${{ secrets.LICOR_API_BASE_URL }}
+          LICOR_API_TOKEN: ${{ secrets.LICOR_API_TOKEN }}
+          LABGURU_BASE_URL: ${{ secrets.LABGURU_BASE_URL }}
+          LABGURU_TOKEN: ${{ secrets.LABGURU_TOKEN }}
+          LABGURU_AUTH_MODE: ${{ secrets.LABGURU_AUTH_MODE }}
+          LABGURU_LICOR_PARENT_FOLDER_ID: ${{ secrets.LABGURU_LICOR_PARENT_FOLDER_ID }}
+          DRY_RUN: "false"
+          AUTO_ADD_COLUMNS: "true"
