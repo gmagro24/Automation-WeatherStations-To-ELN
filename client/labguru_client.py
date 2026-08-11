@@ -19,14 +19,62 @@ Supports:
 """
 
 import json
-import csv
-import io
+import logging
 import os
 
 import requests
 
-from weatherLink.weatherlink_to_labguru import DRY_RUN, logger, LABGURU_DATASETS_PATH, safe_get, \
-    LABGURU_DATASET_DETAIL_PATH_TEMPLATE, build_base_columns, AUTO_ADD_COLUMNS, LABGURU_VECTOR_CREATE_PATH_TEMPLATE
+logger = logging.getLogger(__name__)
+
+LABGURU_DATASETS_PATH = os.getenv("LABGURU_DATASETS_PATH", "/api/v1/datasets")
+LABGURU_DATASET_DETAIL_PATH_TEMPLATE = os.getenv(
+    "LABGURU_DATASET_DETAIL_PATH_TEMPLATE",
+    "/api/v1/datasets/{dataset_id}"
+)
+LABGURU_VECTOR_CREATE_PATH_TEMPLATE = os.getenv(
+    "LABGURU_VECTOR_CREATE_PATH_TEMPLATE",
+    "/api/v1/datasets/{dataset_id}/vectors"
+)
+
+DRY_RUN = str(os.getenv("DRY_RUN", "true")).lower() == "true"
+AUTO_ADD_COLUMNS = str(os.getenv("AUTO_ADD_COLUMNS", "true")).lower() == "true"
+
+
+def safe_get(obj, keys, default=""):
+    if not isinstance(obj, dict):
+        return default
+
+    for key in keys:
+        value = obj.get(key)
+        if value not in [None, ""]:
+            return value
+
+    return default
+
+
+def build_base_columns():
+    return [
+        "record_timestamp",
+        "station_name",
+        "station_id",
+        "station_uuid",
+        "station_time_zone",
+        "station_city",
+        "station_region",
+        "station_country",
+        "station_latitude",
+        "station_longitude",
+        "station_elevation",
+        "device_name",
+        "device_category",
+        "sensor_id",
+        "sensor_type",
+        "data_structure_type",
+        "source",
+        "source_record_key",
+        "sync_created_at",
+        "raw_json"
+    ]
 
 # ======================== Labguru Client ====================================
 
@@ -58,119 +106,6 @@ class LabguruClient:
             }
 
         return {}
-
-    def _extract_first_int(self, obj):
-        if isinstance(obj, int):
-            return obj
-
-        if isinstance(obj, dict):
-            for key in [
-                "id",
-                "attachment_id",
-                "data_attachment_id",
-                "file_id",
-            ]:
-                value = obj.get(key)
-                if isinstance(value, int):
-                    return value
-
-            for value in obj.values():
-                found = self._extract_first_int(value)
-                if found is not None:
-                    return found
-
-        if isinstance(obj, list):
-            for item in obj:
-                found = self._extract_first_int(item)
-                if found is not None:
-                    return found
-
-        return None
-
-    def _upload_seed_attachment(self, columns):
-        clean_columns = [
-            str(column).strip()
-            for column in (columns or [])
-            if str(column).strip()
-        ]
-
-        if not clean_columns:
-            clean_columns = ["record_timestamp"]
-
-        csv_buffer = io.StringIO()
-        writer = csv.writer(csv_buffer)
-        writer.writerow(clean_columns)
-        writer.writerow([""] * len(clean_columns))
-        csv_content = csv_buffer.getvalue().encode("utf-8")
-
-        candidate_paths = [
-            os.getenv("LABGURU_ATTACHMENT_UPLOAD_PATH", "").strip(),
-            "/api/v1/attachments",
-            "/api/v1/data_attachments",
-            "/api/v1/files",
-        ]
-
-        candidate_paths = [
-            path for path in candidate_paths
-            if path
-        ]
-
-        upload_field_names = [
-            "file",
-            "attachment",
-            "data",
-            "qqfile",
-        ]
-
-        last_error = None
-
-        for path in candidate_paths:
-            url = self._url(path)
-
-            for field_name in upload_field_names:
-                files = {
-                    field_name: (
-                        "seed_dataset.csv",
-                        csv_content,
-                        "text/csv"
-                    )
-                }
-
-                try:
-                    response = self.session.post(
-                        url,
-                        headers={"Accept": "application/json"},
-                        params=self._params(),
-                        files=files,
-                        timeout=60
-                    )
-
-                    if response.status_code >= 400:
-                        continue
-
-                    try:
-                        data = response.json()
-                    except ValueError:
-                        continue
-
-                    attachment_id = self._extract_first_int(data)
-
-                    if attachment_id is not None:
-                        logger.info(
-                            "Uploaded Labguru seed attachment: id=%s path=%s field=%s",
-                            attachment_id,
-                            path,
-                            field_name
-                        )
-                        return attachment_id
-
-                except requests.RequestException as error:
-                    last_error = error
-
-        if last_error is not None:
-            logger.warning("Attachment upload attempts failed: %s", last_error)
-
-        return None
 
     def get_datasets(self):
         if DRY_RUN:
@@ -231,48 +166,15 @@ class LabguruClient:
             dataset_name
         )
 
-        safe_columns = [
-            str(column)
-            for column in (columns or [])
-            if str(column).strip()
-        ]
-
-        payload_variants = [
-            {
-                "token": self.token,
-                "item": {
-                    "name": dataset_name,
-                    "description": "Auto-created by WeatherStations sync",
-                }
-            },
-            {
+        payload = {
+            "item": {
                 "name": dataset_name,
-                "title": dataset_name,
                 "description": "Auto-created by WeatherStations sync",
-            },
-            {
-                "name": dataset_name,
-                "title": dataset_name,
-                "columns": safe_columns,
-                "fields": safe_columns,
-                "headers": safe_columns,
-            },
-            {
-                "dataset": {
-                    "name": dataset_name,
-                    "columns": safe_columns,
-                }
-            },
-        ]
+            }
+        }
 
         if parent_folder_id:
-            for payload in payload_variants:
-                if "item" in payload:
-                    payload["item"]["parent_folder_id"] = parent_folder_id
-                elif "dataset" in payload:
-                    payload["dataset"]["parent_folder_id"] = parent_folder_id
-                else:
-                    payload["parent_folder_id"] = parent_folder_id
+            payload["item"]["parent_folder_id"] = parent_folder_id
 
         if DRY_RUN:
             logger.info(
@@ -281,7 +183,7 @@ class LabguruClient:
 
             logger.info(
                 json.dumps(
-                    payload_variants[0],
+                    payload,
                     indent=2
                 )
             )
@@ -296,134 +198,27 @@ class LabguruClient:
             LABGURU_DATASETS_PATH
         )
 
-        last_error = None
-
-        for index, payload in enumerate(payload_variants, start=1):
-            params = self._params()
-
-            # When payload includes token in body, avoid also forcing token query param.
-            if isinstance(payload, dict) and "token" in payload and "item" in payload:
-                params = {}
-
-            response = self.session.post(
-                url,
-                headers=self._headers(),
-                params=params,
-                json=payload,
-                timeout=60
-            )
-
-            if response.status_code < 400:
-                return response.json()
-
-            logger.warning(
-                "Labguru dataset create attempt %s failed: status=%s",
-                index,
-                response.status_code
-            )
-
-            if response.text:
-                logger.warning(
-                    "Labguru response body (attempt %s): %s",
-                    index,
-                    response.text[:800]
-                )
-
-            # Some Labguru errors return 5xx even if dataset was created.
-            # Check by name before trying the next payload shape.
-            try:
-                created_dataset = self.find_dataset_by_name(dataset_name)
-                if created_dataset:
-                    logger.info(
-                        "Dataset appears to have been created despite error response: %s",
-                        dataset_name
-                    )
-                    return created_dataset
-            except Exception:
-                pass
-
-            try:
-                response.raise_for_status()
-            except requests.HTTPError as error:
-                last_error = error
-
-        attachment_id = self._upload_seed_attachment(safe_columns)
-
-        if attachment_id is not None:
-            logger.info(
-                "Retrying dataset creation using data_attachment_id fallback."
-            )
-
-            item_payload = {
-                "item": {
-                    "name": dataset_name,
-                    "description": "Auto-created by WeatherStations sync",
-                    "data_attachment_id": attachment_id,
-                }
-            }
-
-            if parent_folder_id:
-                item_payload["item"]["parent_folder_id"] = parent_folder_id
-
-            body_variants = [
-                {
-                    "token": self.token,
-                    **item_payload,
-                },
-                item_payload,
-            ]
-
-            for index, payload in enumerate(body_variants, start=1):
-                params = self._params()
-                if "token" in payload and "item" in payload:
-                    params = {}
-
-                response = self.session.post(
-                    url,
-                    headers=self._headers(),
-                    params=params,
-                    json=payload,
-                    timeout=60
-                )
-
-                if response.status_code < 400:
-                    return response.json()
-
-                logger.warning(
-                    "Attachment-based dataset create attempt %s failed: status=%s",
-                    index,
-                    response.status_code
-                )
-
-                if response.text:
-                    logger.warning(
-                        "Labguru response body (attachment attempt %s): %s",
-                        index,
-                        response.text[:800]
-                    )
-
-                try:
-                    created_dataset = self.find_dataset_by_name(dataset_name)
-                    if created_dataset:
-                        logger.info(
-                            "Dataset appears to have been created after attachment fallback: %s",
-                            dataset_name
-                        )
-                        return created_dataset
-                except Exception:
-                    pass
-
-                try:
-                    response.raise_for_status()
-                except requests.HTTPError as error:
-                    last_error = error
-
-        if last_error is not None:
-            raise last_error
-
-        raise RuntimeError(
-            f"Failed to create Labguru dataset after trying multiple payload formats: {dataset_name}"
+        response = self.session.post(
+            url,
+            headers=self._headers(),
+            params=self._params(),
+            json=payload,
+            timeout=60
         )
+
+        if response.status_code < 400:
+            return response.json()
+
+        if response.text:
+            logger.warning("Labguru create dataset response: %s", response.text[:800])
+
+        # If API returned an error but dataset was created anyway, continue.
+        created_dataset = self.find_dataset_by_name(dataset_name)
+        if created_dataset:
+            return created_dataset
+
+        response.raise_for_status()
+        raise RuntimeError(f"Failed to create Labguru dataset: {dataset_name}")
 
     def get_dataset_detail(self, dataset_id):
         if DRY_RUN:

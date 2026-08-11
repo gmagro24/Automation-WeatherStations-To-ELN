@@ -764,11 +764,19 @@ def sync_licor_to_labguru():
             latest_row = build_latest_row(device)
             desired_columns = list(latest_row.keys())
 
-        dataset = ensure_dataset(
-            labguru=labguru,
-            dataset_name=dataset_name,
-            desired_columns=desired_columns
-        )
+        try:
+            dataset = ensure_dataset(
+                labguru=labguru,
+                dataset_name=dataset_name,
+                desired_columns=desired_columns
+            )
+        except Exception as error:
+            logger.exception(
+                "Failed to create or update dataset %s: %s",
+                dataset_name,
+                error
+            )
+            continue
 
         total_datasets += 1
 
