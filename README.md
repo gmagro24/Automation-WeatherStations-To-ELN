@@ -59,7 +59,7 @@ Dataset Creation
 Labguru
 ```
 ### Sync Schedule
-Every 15 minutes 
+Once a day at 9am 
 ---
 ## LI-COR
 LI-COR datasets are generated directly from the LI-COR Cloud API.
@@ -74,54 +74,10 @@ Dataset Creation
 ↓
 Labguru
 ```
-Current discovered devices:
-```text
-Campus Bioassay Lab
-Farm Basement GH
-Aedes control 2479
-culex control 2479
-Hobo Water 3
-```
 ### Sync Schedule
 Every week
-
 ---
 
-# Environment Variables
-
-Create a `.env` file.
-
-Production example:
-
-```env
-WEATHERLINK_API_KEY=
-WEATHERLINK_API_SECRET=
-
-LABGURU_BASE_URL=
-LABGURU_TOKEN=
-LABGURU_AUTH_MODE=query
-
-LABGURU_WEATHERLINK_PARENT_FOLDER_ID=
-LABGURU_LICOR_PARENT_FOLDER_ID=
-
-DRY_RUN=true
-AUTO_ADD_COLUMNS=true
-```
-
-Notes:
-
-- `LABGURU_AUTH_MODE` should be `query` for the token behavior currently used by this project.
-- Keep `DRY_RUN=true` while validating locally, then switch to `false` only when you are ready to write to Labguru.
-
-Optional local/testing settings:
-
-```env
-LICOR_DATA_FOLDER=licor/sample_data
-```
-
-- `LICOR_DATA_FOLDER` is only a leftover local/testing setting and is not used by the current LI-COR sync code.
-
----
 
 # Installation
 
@@ -146,16 +102,6 @@ pip install -r requirements.txt
 ---
 
 # Requirements
-
-```text
-requests>=2.32.0
-python-dotenv>=1.0.1
-pymongo>=4.10.0
-pydantic>=2.11.0
-pandas>=2.2.0
-openpyxl>=3.1.0
-
-```
 
 Install:
 
@@ -215,13 +161,13 @@ Recommended Labguru Structure:
 Weather Data
 │
 ├── WeatherLink
-│   ├── Farm 2 - Vantage Pro2 Plus
-│   ├── Winter Haven FL - Barometer
+│   ├── Device 1
+│   ├── Device 2
 │   └── ...
 │
 └── LI-COR
-    ├── Campus Bioassay Lab - LI6800
-    ├── Farm Basement GH - LI6800
+    ├── Device 1
+    ├── Device 2
     └── ...
 ```
 
@@ -260,19 +206,6 @@ Required GitHub Secrets:
 - `LABGURU_WEATHERLINK_PARENT_FOLDER_ID`
 - `LABGURU_LICOR_PARENT_FOLDER_ID`
 
-Deployment checklist:
-
-1. Add the secrets above in GitHub Actions.
-2. Keep `LABGURU_AUTH_MODE=query`.
-3. Confirm `LABGURU_BASE_URL=https://my.labguru.com`.
-4. Run each workflow manually once from the Actions tab.
-5. Verify datasets and rows appear in Labguru.
-6. Leave `DRY_RUN=false` in the workflows only after the manual test succeeds.
-
-Workflow schedules:
-
-- WeatherLink sync runs every 15 minutes.
-- LI-COR sync runs weekly on Sunday at 00:00 UTC.
 
 # State Tracking
 
@@ -345,43 +278,7 @@ state = load_state()
 last_weatherlink_timestamp = state.get()
 ```
 
-# Current Status
-
-## WeatherLink
-
-Completed:
-- API authentication
-- Station discovery
-- Sensor discovery
-- Dynamic schema creation
-- Automatic dataset generation
-- GitHub workflow integration
-
-Status:
-```text
-Awaiting Labguru credential validation
-Newest_timestamp defined, so duplicate entries do not occur.
-```
----
-## LI-COR
-Completed:
-- API authentication
-- Device discovery
-- Sensor discovery
-- Dynamic schema creation
-- Automatic dataset generation
-- GitHub workflow integration
-
-Status:
-
-```text
-Awaiting Labguru credential validation
-Newest_timestamp defined, so duplicate entries do not occur.
-```
-
-Historical data endpoint validation remains under investigation.
-Current implementation automatically uploads latest sensor values for all discovered devices.
 
 # Author
 
-Clarke / Environmental Data Integration Project
+Gina Magro / Environmental Data Integration Project
