@@ -117,6 +117,16 @@ class LabguruClient:
 
         payload_variants = [
             {
+                "token": self.token,
+                "item": {
+                    "name": dataset_name,
+                    "title": dataset_name,
+                    "columns": columns,
+                    "fields": columns,
+                    "headers": columns,
+                }
+            },
+            {
                 "name": dataset_name,
                 "title": dataset_name,
                 "columns": columns,
@@ -141,7 +151,9 @@ class LabguruClient:
 
         if parent_folder_id:
             for payload in payload_variants:
-                if "dataset" in payload:
+                if "item" in payload:
+                    payload["item"]["parent_folder_id"] = parent_folder_id
+                elif "dataset" in payload:
                     payload["dataset"]["parent_folder_id"] = parent_folder_id
                 else:
                     payload["parent_folder_id"] = parent_folder_id
@@ -171,10 +183,16 @@ class LabguruClient:
         last_error = None
 
         for index, payload in enumerate(payload_variants, start=1):
+            params = self._params()
+
+            # When payload includes token in body, avoid also forcing token query param.
+            if isinstance(payload, dict) and "token" in payload and "item" in payload:
+                params = {}
+
             response = self.session.post(
                 url,
                 headers=self._headers(),
-                params=self._params(),
+                params=params,
                 json=payload,
                 timeout=60
             )
