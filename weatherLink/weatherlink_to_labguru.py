@@ -10,18 +10,13 @@ State Tracking:
 
 Author: Gina Magro
 """
-
-
 import os
 import re
 import sys
 import json
 import logging
 import requests
-
 from pathlib import Path
-from datetime import datetime, timezone
-from client.state_manager import (load_state,save_state,utc_now)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +27,12 @@ try:
     load_dotenv(PROJECT_ROOT / ".env")
 except Exception:
     pass
+
+
+from datetime import datetime, timezone
+from client.state_manager import (load_state,save_state,utc_now)
+
+
 
 
 try:
