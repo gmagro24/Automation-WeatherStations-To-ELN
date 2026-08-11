@@ -644,14 +644,24 @@ def ensure_dataset(labguru, dataset_name, desired_columns):
     )
 
     try:
-        return labguru.create_dataset(
+        created = labguru.create_dataset(
             dataset_name,
-            desired_columns,
+            [],
             parent_folder_id=LABGURU_LICOR_PARENT_FOLDER_ID
         )
+
+        return labguru.update_dataset_columns(
+            created,
+            desired_columns
+        )
     except TypeError:
-        return labguru.create_dataset(
+        created = labguru.create_dataset(
             dataset_name,
+            []
+        )
+
+        return labguru.update_dataset_columns(
+            created,
             desired_columns
         )
 

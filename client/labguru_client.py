@@ -115,36 +115,36 @@ class LabguruClient:
             dataset_name
         )
 
+        safe_columns = [
+            str(column)
+            for column in (columns or [])
+            if str(column).strip()
+        ]
+
         payload_variants = [
             {
                 "token": self.token,
                 "item": {
                     "name": dataset_name,
-                    "title": dataset_name,
-                    "columns": columns,
-                    "fields": columns,
-                    "headers": columns,
+                    "description": "Auto-created by WeatherStations sync",
                 }
             },
             {
                 "name": dataset_name,
                 "title": dataset_name,
-                "columns": columns,
-                "fields": columns,
-                "headers": columns,
+                "description": "Auto-created by WeatherStations sync",
             },
             {
                 "name": dataset_name,
-                "columns": columns,
-            },
-            {
                 "title": dataset_name,
-                "headers": columns,
+                "columns": safe_columns,
+                "fields": safe_columns,
+                "headers": safe_columns,
             },
             {
                 "dataset": {
                     "name": dataset_name,
-                    "columns": columns,
+                    "columns": safe_columns,
                 }
             },
         ]
