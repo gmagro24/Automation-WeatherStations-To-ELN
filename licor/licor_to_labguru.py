@@ -10,18 +10,9 @@ State Tracking:
 
 Author: Gina Magro
 """
-import os
 import sys
-import json
-import logging
-import requests
-from urllib.parse import urlparse
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
-from client.state_manager import load_state, utc_now, save_state
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -31,6 +22,18 @@ try:
     load_dotenv(PROJECT_ROOT / ".env")
 except Exception:
     pass
+
+import os
+import json
+import logging
+import requests
+from urllib.parse import urlparse
+from datetime import datetime, timezone, timedelta
+from client.state_manager import load_state, utc_now, save_state
+
+
+
+
 
 
 try:
