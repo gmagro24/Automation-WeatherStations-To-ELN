@@ -15,6 +15,7 @@ import sys
 import json
 import logging
 import requests
+from urllib.parse import urlparse
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from client.state_manager import load_state, utc_now, save_state
@@ -144,6 +145,32 @@ def is_scalar(value):
     )
 
 
+def flatten_scalar_fields(obj, prefix=""):
+    flattened = {}
+
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            key_str = str(key)
+            flat_key = f"{prefix}_{key_str}" if prefix else key_str
+
+            if is_scalar(value):
+                flattened[flat_key] = safe_value(value)
+            elif isinstance(value, dict):
+                flattened.update(flatten_scalar_fields(value, flat_key))
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    list_key = f"{flat_key}_{index}"
+
+                    if is_scalar(item):
+                        flattened[list_key] = safe_value(item)
+                    elif isinstance(item, dict):
+                        flattened.update(
+                            flatten_scalar_fields(item, list_key)
+                        )
+
+    return flattened
+
+
 def safe_value(value):
     if value is None:
         return None
@@ -186,9 +213,36 @@ def require_env():
 
 class LicorClient:
     def __init__(self, base_url=None, token=None):
-        self.base_url = (base_url or LICOR_API_BASE_URL).rstrip("/")
+        self.base_url = self._normalize_base_url(
+            base_url or LICOR_API_BASE_URL
+        )
         self.token = token or LICOR_API_TOKEN
         self.session = requests.Session()
+
+    def _normalize_base_url(self, base_url):
+        raw = str(base_url or "").strip()
+
+        if not raw:
+            return "https://api.licor.cloud"
+
+        parsed = urlparse(raw)
+
+        if not parsed.scheme or not parsed.netloc:
+            return raw.rstrip("/")
+
+        host = parsed.netloc.lower()
+
+        # The website host returns HTML. API requests must use api.licor.cloud.
+        if host == "www.licor.cloud":
+            host = "api.licor.cloud"
+
+        if parsed.path and parsed.path != "/":
+            logger.warning(
+                "LICOR_API_BASE_URL should not include version/path. Ignoring path '%s'.",
+                parsed.path
+            )
+
+        return f"{parsed.scheme}://{host}"
 
     def headers(self):
         return {
@@ -211,12 +265,22 @@ class LicorClient:
 
         if response.status_code >= 400:
             logger.error("LI-COR API request failed")
-            logger.error("URL: %s", url)
+            logger.error("URL: %s", response.url)
             logger.error("Status: %s", response.status_code)
             logger.error(response.text)
 
         response.raise_for_status()
-        return response.json()
+
+        try:
+            return response.json()
+        except ValueError as error:
+            content_type = response.headers.get("Content-Type", "")
+            preview = response.text[:240]
+            raise RuntimeError(
+                "LI-COR API returned non-JSON response. "
+                f"URL={response.url} status={response.status_code} "
+                f"content_type={content_type} body_preview={preview}"
+            ) from error
 
     def get_devices(self):
         return self.get("/v2/devices")
@@ -227,12 +291,20 @@ class LicorClient:
         start_date_time,
         end_date_time
     ):
+        start_clean = str(start_date_time).strip()
+        end_clean = str(end_date_time).strip()
+
+        # LI-COR /v1/data expects 'YYYY-MM-DD HH:MM:SS' (no trailing Z).
+        start_clean = start_clean.replace("T", " ").replace("Z", "")
+        end_clean = end_clean.replace("T", " ").replace("Z", "")
+
         params = {
-            "start_date_time": start_date_time,
-            "end_date_time": end_date_time
+            "loggers": str(device_serial_number),
+            "start_date_time": start_clean,
+            "end_date_time": end_clean
         }
 
-        path = f"/v1/newa/{device_serial_number}"
+        path = "/v1/data"
 
         return self.get(
             path,
@@ -355,12 +427,19 @@ def discover_columns_from_records(records, device):
     columns = build_base_columns()
     columns = add_latest_sensor_columns(columns, device)
 
+    for field_key in flatten_scalar_fields(
+        device,
+        prefix="device_meta"
+    ).keys():
+        if field_key not in columns:
+            columns.append(field_key)
+
     for record in records:
         if not isinstance(record, dict):
             continue
 
-        for key, value in record.items():
-            if is_scalar(value) and key not in columns:
+        for key in flatten_scalar_fields(record).keys():
+            if key not in columns:
                 columns.append(key)
 
     return columns
@@ -426,6 +505,13 @@ def build_latest_row(device):
             default=str
         )
     }
+
+    row.update(
+        flatten_scalar_fields(
+            device,
+            prefix="device_meta"
+        )
+    )
 
     sensors = device.get("sensors", [])
 
@@ -499,9 +585,7 @@ def build_row_from_record(device, record):
         default=str
     )
 
-    for key, value in record.items():
-        if is_scalar(value):
-            row[key] = safe_value(value)
+    row.update(flatten_scalar_fields(record))
 
     return row
 

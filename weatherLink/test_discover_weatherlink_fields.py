@@ -15,8 +15,14 @@ Output:
     Prints a sorted list of all unique data fields found
     across all stations and sensors.
 """
+
+import sys
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.append(str(PROJECT_ROOT))
+
 from config import WEATHERLINK_API_KEY, WEATHERLINK_API_SECRET
-from weatherlink_to_labguru import WeatherLinkClient
+from weatherLink.weatherlink_to_labguru import WeatherLinkClient
 
 client = WeatherLinkClient(
     WEATHERLINK_API_KEY,

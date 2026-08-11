@@ -114,7 +114,7 @@ def utc_now_iso():
 def clean_name(value):
     text = str(value or "").strip()
     text = re.sub(r"\s+", " ", text)
-    text = re.sub(r"[^\w\s\-\(\)\[\]\.\/&]", "", text)
+    text = re.sub(r"[^\w\s\-()\[\]./&]", "", text)
     return text
 
 
@@ -161,6 +161,32 @@ def safe_value(value):
             pass
 
     return value
+
+
+def flatten_scalar_fields(obj, prefix=""):
+    flattened = {}
+
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            key_str = str(key)
+            flat_key = f"{prefix}_{key_str}" if prefix else key_str
+
+            if is_scalar(value):
+                flattened[flat_key] = safe_value(value)
+            elif isinstance(value, dict):
+                flattened.update(flatten_scalar_fields(value, flat_key))
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    list_key = f"{flat_key}_{index}"
+
+                    if is_scalar(item):
+                        flattened[list_key] = safe_value(item)
+                    elif isinstance(item, dict):
+                        flattened.update(
+                            flatten_scalar_fields(item, list_key)
+                        )
+
+    return flattened
 
 
 def build_base_columns():
@@ -409,10 +435,7 @@ def discover_columns_from_packets(data_packets):
     columns = build_base_columns()
 
     for packet in data_packets:
-        for field_key, value in packet.items():
-            if not is_scalar(value):
-                continue
-
+        for field_key in flatten_scalar_fields(packet).keys():
             if field_key not in columns:
                 columns.append(field_key)
 
@@ -553,11 +576,28 @@ def build_row(station, sensor_block, sensor_meta, packet):
         )
     }
 
-    for field_key, value in packet.items():
-        if not is_scalar(value):
-            continue
+    row.update(
+        flatten_scalar_fields(
+            station,
+            prefix="station_meta"
+        )
+    )
 
-        row[field_key] = safe_value(value)
+    row.update(
+        flatten_scalar_fields(
+            sensor_meta,
+            prefix="sensor_meta"
+        )
+    )
+
+    row.update(
+        flatten_scalar_fields(
+            sensor_block,
+            prefix="sensor_block"
+        )
+    )
+
+    row.update(flatten_scalar_fields(packet))
 
     return row
 
@@ -721,6 +761,27 @@ def sync_weatherlink_to_labguru():
             desired_columns = discover_columns_from_packets(
                 data_packets
             )
+
+            for extra_field in flatten_scalar_fields(
+                station,
+                prefix="station_meta"
+            ).keys():
+                if extra_field not in desired_columns:
+                    desired_columns.append(extra_field)
+
+            for extra_field in flatten_scalar_fields(
+                sensor_meta,
+                prefix="sensor_meta"
+            ).keys():
+                if extra_field not in desired_columns:
+                    desired_columns.append(extra_field)
+
+            for extra_field in flatten_scalar_fields(
+                sensor_block,
+                prefix="sensor_block"
+            ).keys():
+                if extra_field not in desired_columns:
+                    desired_columns.append(extra_field)
 
             try:
                 dataset = ensure_dataset(
